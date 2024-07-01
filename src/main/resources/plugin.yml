@@ -1,0 +1,10 @@
+name: ${name}
+description: ${description}
+author: ${author}
+main: ${mainClass}
+version: ${version}
+api-version: 1.20
+commands:
+  bolsa:
+    description: "Abre tu Bolsa de Trinkets."
+    usage: "/bolsa"
