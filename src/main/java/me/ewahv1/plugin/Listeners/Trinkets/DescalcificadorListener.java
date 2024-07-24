@@ -1,141 +1,131 @@
 package me.ewahv1.plugin.Listeners.Trinkets;
 
-import me.ewahv1.plugin.Main;
-import me.ewahv1.plugin.Database.DatabaseConnection;
-import me.ewahv1.plugin.Listeners.Items.TrinketBag.BagOfTrinkets;
-import org.bukkit.Bukkit;
+import com.google.gson.Gson;
 import org.bukkit.Material;
-import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Skeleton;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.util.io.BukkitObjectInputStream;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.Arrays;
-import java.util.Random;
-import java.util.UUID;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.util.Map;
+import java.util.Base64;
 
 public class DescalcificadorListener implements Listener {
-    private final Main plugin;
-    private final DatabaseConnection databaseConnection;
-    private final BagOfTrinkets bagOfTrinkets;
 
-    public DescalcificadorListener(Main plugin, DatabaseConnection databaseConnection, BagOfTrinkets bagOfTrinkets) {
+    private final JavaPlugin plugin;
+    private final TrinketDropManager trinketDropManager;
+
+    public DescalcificadorListener(JavaPlugin plugin) {
         this.plugin = plugin;
-        this.databaseConnection = databaseConnection;
-        this.bagOfTrinkets = bagOfTrinkets;
+        this.trinketDropManager = new TrinketDropManager(plugin);
     }
 
     @EventHandler
-    public void onSkeletonDeath(EntityDeathEvent event) {
-        if (event.getEntity() instanceof Skeleton) {
-            Skeleton skeleton = (Skeleton) event.getEntity();
-            if (skeleton.getKiller() instanceof Player) {
-                Random rand = new Random();
-                int chance = rand.nextInt(100);
-                if (chance < 90) {
-                    int goldenChance = rand.nextInt(100);
-                    ItemStack warpedFungusStick;
-                    if (goldenChance < 50) {
-                        warpedFungusStick = createTrinket("§6§lDescalcificador dorado", "§aTus ataques básicos realizan +2❤ a los Esqueletos", 4, Enchantment.DURABILITY, 1);
-                        updateDatabaseAsync("UPDATE tri_count_settings SET CountGold = CountGold + 1 WHERE ID = 1");
-                    } else {
-                        warpedFungusStick = createTrinket("§a§lDescalcificador", "§aTus ataques básicos realizan +1❤ a los Esqueletos", 3, null, 0);
-                        updateDatabaseAsync("UPDATE tri_count_settings SET CountNormal = CountNormal + 1 WHERE ID = 1");
-                    }
-                    event.getDrops().add(warpedFungusStick);
-                }
-            }
+    public void onEntityDeath(EntityDeathEvent event) {
+        if (event.getEntity().getType() == EntityType.SKELETON) {
+            trinketDropManager.handleEntityDeath(event, "Esqueleto", "Descalcificador",
+                    Material.WARPED_FUNGUS_ON_A_STICK);
         }
-    }
-
-    private ItemStack createTrinket(String displayName, String lore, int customModelData, Enchantment enchantment, int enchantmentLevel) {
-        ItemStack itemStack = new ItemStack(Material.WARPED_FUNGUS_ON_A_STICK, 1);
-        ItemMeta meta = itemStack.getItemMeta();
-        meta.setDisplayName(displayName);
-        meta.setLore(Arrays.asList(lore, "§6§lSlot: B.O.T"));
-        meta.setCustomModelData(customModelData);
-        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
-        if (enchantment != null) {
-            meta.addEnchant(enchantment, enchantmentLevel, true);
-            meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-        }
-        itemStack.setItemMeta(meta);
-        return itemStack;
-    }
-
-    private void updateDatabaseAsync(String query) {
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                try (Connection connection = databaseConnection.getConnection();
-                     Statement statement = connection.createStatement()) {
-                    statement.executeUpdate(query);
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-            }
-        }.runTaskAsynchronously(plugin);
     }
 
     @EventHandler
-    public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
-        if (event.getEntity() instanceof Skeleton && event.getDamager() instanceof Player) {
+    public void onEntityDamage(EntityDamageByEntityEvent event) {
+        if (event.getEntity().getType() == EntityType.SKELETON && event.getDamager() instanceof Player) {
             Player player = (Player) event.getDamager();
-            UUID playerUuid = player.getUniqueId();
+            Inventory trinketBag = getTrinketBag(player);
+            if (trinketBag == null) {
+                return;
+            }
 
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    Inventory bag = bagOfTrinkets.loadInventoryFromDatabase(playerUuid);
-                    if (bag == null) {
-                        Bukkit.getLogger().info("Inventario de la bolsa de trinkets no encontrado.");
-                        return;
-                    }
+            double additionalDamage = 0;
+            String detectedTrinket = "Ninguno";
 
-                    boolean trinketFound = false;
-                    double additionalDamage = 0;
-
-                    for (ItemStack item : bag.getContents()) {
-                        if (item != null && item.getType() == Material.WARPED_FUNGUS_ON_A_STICK) {
-                            String displayName = item.getItemMeta().getDisplayName();
-                            Bukkit.getLogger().info("Encontrado item: " + displayName);
-                            if ("§a§lDescalcificador".equals(displayName)) {
-                                trinketFound = true;
-                                additionalDamage = 1;
-                                break;
-                            } else if ("§6§lDescalcificador dorado".equals(displayName)) {
-                                trinketFound = true;
-                                additionalDamage = 2;
-                                break;
-                            }
+            for (ItemStack item : trinketBag.getContents()) {
+                if (item != null && item.getType() == Material.WARPED_FUNGUS_ON_A_STICK) {
+                    ItemMeta meta = item.getItemMeta();
+                    if (meta != null) {
+                        String displayName = meta.getDisplayName();
+                        if (displayName.equals("Descalcificador")) {
+                            additionalDamage = 1;
+                            detectedTrinket = "Descalcificador";
+                            break;
+                        } else if (displayName.equals("§6§lDescalcificador Dorado")) {
+                            additionalDamage = 2;
+                            detectedTrinket = "Descalcificador Dorado";
+                            break;
                         }
                     }
-
-                    if (trinketFound) {
-                        double finalAdditionalDamage = additionalDamage;
-                        new BukkitRunnable() {
-                            @Override
-                            public void run() {
-                                event.setDamage(event.getDamage() + finalAdditionalDamage);
-                                Bukkit.getLogger().info("Trinket encontrado y aplicado. Daño adicional: " + finalAdditionalDamage);
-                            }
-                        }.runTask(plugin);
-                    } else {
-                        Bukkit.getLogger().info("Trinket no encontrado en la bolsa de trinkets.");
-                    }
                 }
-            }.runTaskAsynchronously(plugin);
+            }
+
+            if (additionalDamage > 0) {
+                event.setDamage(event.getDamage() + additionalDamage);
+                player.sendMessage(
+                        "Trinket detectado: " + detectedTrinket + ". Daño total: " + event.getDamage() + " ❤");
+            }
+        }
+    }
+
+    private Inventory getTrinketBag(Player player) {
+        File file = new File(plugin.getDataFolder(), "BagsOfTrinkets.json");
+        if (!file.exists()) {
+            return null;
+        }
+
+        Gson gson = new Gson();
+        try (FileReader reader = new FileReader(file)) {
+            BagOfTrinkets[] bagsArray = gson.fromJson(reader, BagOfTrinkets[].class);
+            for (BagOfTrinkets bag : bagsArray) {
+                if (bag.getNombre().equals(player.getName())) {
+                    return deserializeInventory(bag.getInventario());
+                }
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    private Inventory deserializeInventory(Map<Integer, String> serializedInventory)
+            throws IOException, ClassNotFoundException {
+        Inventory inventory = plugin.getServer().createInventory(null, 54, "Bolsa de Trinkets");
+        for (Map.Entry<Integer, String> entry : serializedInventory.entrySet()) {
+            byte[] data = Base64.getDecoder().decode(entry.getValue());
+            try (BukkitObjectInputStream dataInput = new BukkitObjectInputStream(new ByteArrayInputStream(data))) {
+                ItemStack item = (ItemStack) dataInput.readObject();
+                inventory.setItem(entry.getKey() - 1, item); // Convertir de 1-based a 0-based
+            }
+        }
+        return inventory;
+    }
+
+    private static class BagOfTrinkets {
+        private final String nombre;
+        private final Map<Integer, String> inventario;
+
+        public BagOfTrinkets(String nombre, Map<Integer, String> inventario) {
+            this.nombre = nombre;
+            this.inventario = inventario;
+        }
+
+        public String getNombre() {
+            return nombre;
+        }
+
+        public Map<Integer, String> getInventario() {
+            return inventario;
         }
     }
 }

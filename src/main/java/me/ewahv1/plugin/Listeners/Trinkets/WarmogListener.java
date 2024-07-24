@@ -1,181 +1,176 @@
 package me.ewahv1.plugin.Listeners.Trinkets;
 
-import me.ewahv1.plugin.Database.DatabaseConnection;
-import me.ewahv1.plugin.Listeners.Items.TrinketBag.BagOfTrinkets;
-import me.ewahv1.plugin.Main;
-import org.bukkit.Bukkit;
+import com.google.gson.Gson;
 import org.bukkit.Material;
-import org.bukkit.enchantments.Enchantment;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
+import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Ravager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.io.BukkitObjectInputStream;
-import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.io.ByteArrayInputStream;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
+import java.util.Base64;
 
 public class WarmogListener implements Listener {
-    private final Map<UUID, Long> lastDamaged = new HashMap<>();
-    private final Main plugin;
-    private final BagOfTrinkets bagOfTrinkets;
-    private final DatabaseConnection databaseConnection;
 
-    public WarmogListener(Main plugin, DatabaseConnection databaseConnection, BagOfTrinkets bagOfTrinkets) {
+    private final JavaPlugin plugin;
+    private final Map<UUID, AttributeModifier> healthModifiers = new HashMap<>();
+    private final TrinketDropManager dropManager;
+
+    public WarmogListener(JavaPlugin plugin) {
         this.plugin = plugin;
-        this.databaseConnection = plugin.getDatabaseConnection();
-        this.bagOfTrinkets = new BagOfTrinkets(plugin); // Crear BagOfTrinkets usando el plugin
+        this.dropManager = new TrinketDropManager(plugin);
     }
 
     @EventHandler
-    public void onRavagerDeath(EntityDeathEvent event) {
-        if (event.getEntity() instanceof Ravager) {
-            Ravager ravager = (Ravager) event.getEntity();
-            if (ravager.getKiller() instanceof Player) {
-                Random rand = new Random();
-                int chance = rand.nextInt(100);
-                if (chance < 90) {
-                    int goldenChance = rand.nextInt(100);
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            try (Connection connection = databaseConnection.getConnection();
-                                 Statement statement = connection.createStatement()) {
-                                ItemStack warmogArmor;
-                                if (goldenChance < 50) {
-                                    warmogArmor = new ItemStack(Material.WARPED_FUNGUS_ON_A_STICK, 1);
-                                    ItemMeta meta = warmogArmor.getItemMeta();
-                                    meta.setDisplayName("§6§lArmadura de Warmog dorada");
-                                    meta.setLore(Arrays.asList("§aAumenta tu salud máxima en +4❤", "§6§lSlot: Mano secundaria"));
-                                    meta.setCustomModelData(8);
-                                    meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
-                                    meta.addEnchant(Enchantment.DURABILITY, 1, true);
-                                    meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-                                    warmogArmor.setItemMeta(meta);
+    public void onEntityDeath(EntityDeathEvent event) {
+        if (event.getEntity().getType() == EntityType.RAVAGER) {
+            dropManager.handleEntityDeath(event, "Ravager", "Warmog", Material.WARPED_FUNGUS_ON_A_STICK);
+        }
+    }
 
-                                    statement.executeUpdate("UPDATE tri_count_settings SET CountGold = CountGold + 1 WHERE ID = 3");
-                                } else {
-                                    warmogArmor = new ItemStack(Material.WARPED_FUNGUS_ON_A_STICK, 1);
-                                    ItemMeta meta = warmogArmor.getItemMeta();
-                                    meta.setDisplayName("§a§lArmadura de Warmog");
-                                    meta.setLore(Arrays.asList("§aAumenta tu salud máxima en +2❤", "§6§lSlot: Mano secundaria"));
-                                    meta.setCustomModelData(7);
-                                    meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
-                                    warmogArmor.setItemMeta(meta);
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        resetPlayerHealth(event.getPlayer());
+    }
 
-                                    statement.executeUpdate("UPDATE tri_count_settings SET CountNormal = CountNormal + 1 WHERE ID = 3");
-                                }
-                                new BukkitRunnable() {
-                                    @Override
-                                    public void run() {
-                                        event.getDrops().add(warmogArmor);
-                                    }
-                                }.runTask(plugin);
-                            } catch (SQLException e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }.runTaskAsynchronously(plugin);
+    @EventHandler
+    public void onPlayerQuit(PlayerQuitEvent event) {
+        resetPlayerHealth(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onInventoryClose(InventoryCloseEvent event) {
+        Player player = (Player) event.getPlayer();
+        if ("Bolsa de Trinkets".equals(event.getView().getTitle())) {
+            updatePlayerHealth(player);
+        }
+    }
+
+    private void updatePlayerHealth(Player player) {
+        Inventory trinketBag = getTrinketBag(player);
+        if (trinketBag == null) {
+            resetPlayerHealth(player);
+            return;
+        }
+
+        double additionalHealth = 0;
+
+        for (ItemStack item : trinketBag.getContents()) {
+            if (item != null && item.getType() == Material.WARPED_FUNGUS_ON_A_STICK) {
+                ItemMeta meta = item.getItemMeta();
+                if (meta != null) {
+                    String displayName = meta.getDisplayName();
+                    if (displayName.equals("Warmog")) {
+                        additionalHealth = 8;
+                        break;
+                    } else if (displayName.equals("§6§lWarmog Dorado")) {
+                        additionalHealth = 16;
+                        break;
+                    }
                 }
             }
         }
+
+        applyHealthModifier(player, additionalHealth);
     }
 
-    @EventHandler
-    public void onEntityDamage(EntityDamageByEntityEvent event) {
-        if (event.getEntity() instanceof Player) {
-            Player player = (Player) event.getEntity();
-            UUID playerUuid = player.getUniqueId();
-            if (player.getHealth() <= player.getMaxHealth() / 2) { // Check if player's health is less than or equal to half
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        Inventory bag = getBag(playerUuid);
+    private void applyHealthModifier(Player player, double additionalHealth) {
+        UUID playerUUID = player.getUniqueId();
+        AttributeInstance healthAttribute = player.getAttribute(Attribute.GENERIC_MAX_HEALTH);
 
-                        if (bag != null) {
-                            new BukkitRunnable() {
-                                @Override
-                                public void run() {
-                                    for (ItemStack item : bag.getContents()) {
-                                        if (item != null && item.getType() == Material.WARPED_FUNGUS_ON_A_STICK) {
-                                            long currentTime = System.currentTimeMillis();
-                                            long lastTimeDamaged = lastDamaged.getOrDefault(playerUuid, 0L);
-                                            if (currentTime - lastTimeDamaged > 6000) { // 6 seconds cooldown
-                                                applyRegenerationEffect(player, item);
-                                                lastDamaged.put(playerUuid, currentTime);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }.runTask(plugin);
-                        }
-                    }
-                }.runTaskAsynchronously(plugin);
-            }
+        if (healthModifiers.containsKey(playerUUID)) {
+            healthAttribute.removeModifier(healthModifiers.get(playerUUID));
+            healthModifiers.remove(playerUUID);
+        }
+
+        if (additionalHealth > 0) {
+            AttributeModifier modifier = new AttributeModifier(UUID.randomUUID(), "trinket_health", additionalHealth,
+                    AttributeModifier.Operation.ADD_NUMBER);
+            healthAttribute.addModifier(modifier);
+            healthModifiers.put(playerUUID, modifier);
         }
     }
 
-    private void applyRegenerationEffect(Player player, ItemStack item) {
-        if (item.getType() == Material.WARPED_FUNGUS_ON_A_STICK) {
-            if (item.getItemMeta().getDisplayName().equals("§a§lArmadura de Warmog")) {
-                player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 40, 0, true, false, true)); // 2 seconds of regeneration 1
-            } else if (item.getItemMeta().getDisplayName().equals("§6§lArmadura de Warmog dorada")) {
-                player.addPotionEffect(new PotionEffect(PotionEffectType.REGENERATION, 80, 1, true, false, true)); // 4 seconds of regeneration 2
-            }
+    private void resetPlayerHealth(Player player) {
+        UUID playerUUID = player.getUniqueId();
+        AttributeInstance healthAttribute = player.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+
+        if (healthModifiers.containsKey(playerUUID)) {
+            healthAttribute.removeModifier(healthModifiers.get(playerUUID));
+            healthModifiers.remove(playerUUID);
         }
+
+        // Establecer la salud máxima predeterminada
+        healthAttribute.setBaseValue(20.0); // 20 es la salud predeterminada (10 corazones)
     }
 
-    private Inventory getBag(UUID playerUuid) {
-        try (Connection connection = databaseConnection.getConnection()) {
-            PreparedStatement ps = connection.prepareStatement("SELECT inventory FROM player_inventories WHERE player_uuid = ?");
-            ps.setString(1, playerUuid.toString());
-            ResultSet rs = ps.executeQuery();
+    private Inventory getTrinketBag(Player player) {
+        File file = new File(plugin.getDataFolder(), "BagsOfTrinkets.json");
+        if (!file.exists()) {
+            return null;
+        }
 
-            if (rs.next()) {
-                String inventoryString = rs.getString("inventory");
-                return deserializeInventory(inventoryString);
+        Gson gson = new Gson();
+        try (FileReader reader = new FileReader(file)) {
+            BagOfTrinkets[] bagsArray = gson.fromJson(reader, BagOfTrinkets[].class);
+            for (BagOfTrinkets bag : bagsArray) {
+                if (bag.getNombre().equals(player.getName())) {
+                    return deserializeInventory(bag.getInventario());
+                }
             }
-        } catch (SQLException e) {
+        } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
 
         return null;
     }
 
-    private Inventory deserializeInventory(String inventoryString) {
-        try {
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64Coder.decodeLines(inventoryString));
-            BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream);
-            Inventory inventory = Bukkit.getServer().createInventory(null, dataInput.readInt());
-
-            for (int i = 0; i < inventory.getSize(); i++) {
-                inventory.setItem(i, (ItemStack) dataInput.readObject());
+    private Inventory deserializeInventory(Map<Integer, String> serializedInventory)
+            throws IOException, ClassNotFoundException {
+        Inventory inventory = plugin.getServer().createInventory(null, 54, "Bolsa de Trinkets");
+        for (Map.Entry<Integer, String> entry : serializedInventory.entrySet()) {
+            byte[] data = Base64.getDecoder().decode(entry.getValue());
+            try (BukkitObjectInputStream dataInput = new BukkitObjectInputStream(new ByteArrayInputStream(data))) {
+                ItemStack item = (ItemStack) dataInput.readObject();
+                inventory.setItem(entry.getKey() - 1, item); // Convertir de 1-based a 0-based
             }
+        }
+        return inventory;
+    }
 
-            dataInput.close();
-            return inventory;
-        } catch (Exception e) {
-            throw new IllegalStateException("No se pudo cargar el inventario.", e);
+    private static class BagOfTrinkets {
+        private final String nombre;
+        private final Map<Integer, String> inventario;
+
+        public BagOfTrinkets(String nombre, Map<Integer, String> inventario) {
+            this.nombre = nombre;
+            this.inventario = inventario;
+        }
+
+        public String getNombre() {
+            return nombre;
+        }
+
+        public Map<Integer, String> getInventario() {
+            return inventario;
         }
     }
 }

@@ -6,5 +6,5 @@ version: ${version}
 api-version: 1.20
 commands:
   bolsa:
-    description: "Abre tu Bolsa de Trinkets."
-    usage: "/bolsa"
+    description: Abre la bolsa de trinkets.
+    usage: /bolsa
