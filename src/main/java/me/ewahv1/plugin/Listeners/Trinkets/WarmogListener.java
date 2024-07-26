@@ -118,8 +118,7 @@ public class WarmogListener implements Listener {
             healthModifiers.remove(playerUUID);
         }
 
-        // Establecer la salud máxima predeterminada
-        healthAttribute.setBaseValue(20.0); // 20 es la salud predeterminada (10 corazones)
+        healthAttribute.setBaseValue(20.0);
     }
 
     private Inventory getTrinketBag(Player player) {
@@ -150,7 +149,7 @@ public class WarmogListener implements Listener {
             byte[] data = Base64.getDecoder().decode(entry.getValue());
             try (BukkitObjectInputStream dataInput = new BukkitObjectInputStream(new ByteArrayInputStream(data))) {
                 ItemStack item = (ItemStack) dataInput.readObject();
-                inventory.setItem(entry.getKey() - 1, item); // Convertir de 1-based a 0-based
+                inventory.setItem(entry.getKey() - 1, item);
             }
         }
         return inventory;

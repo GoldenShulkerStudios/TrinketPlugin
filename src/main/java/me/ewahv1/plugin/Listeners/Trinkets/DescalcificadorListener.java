@@ -49,7 +49,6 @@ public class DescalcificadorListener implements Listener {
             }
 
             double additionalDamage = 0;
-            String detectedTrinket = "Ninguno";
 
             for (ItemStack item : trinketBag.getContents()) {
                 if (item != null && item.getType() == Material.WARPED_FUNGUS_ON_A_STICK) {
@@ -58,11 +57,9 @@ public class DescalcificadorListener implements Listener {
                         String displayName = meta.getDisplayName();
                         if (displayName.equals("Descalcificador")) {
                             additionalDamage = 1;
-                            detectedTrinket = "Descalcificador";
                             break;
                         } else if (displayName.equals("§6§lDescalcificador Dorado")) {
                             additionalDamage = 2;
-                            detectedTrinket = "Descalcificador Dorado";
                             break;
                         }
                     }
@@ -71,8 +68,6 @@ public class DescalcificadorListener implements Listener {
 
             if (additionalDamage > 0) {
                 event.setDamage(event.getDamage() + additionalDamage);
-                player.sendMessage(
-                        "Trinket detectado: " + detectedTrinket + ". Daño total: " + event.getDamage() + " ❤");
             }
         }
     }

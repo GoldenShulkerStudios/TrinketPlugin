@@ -49,7 +49,6 @@ public class BrazoPutrefactoListener implements Listener {
             }
 
             double additionalDamage = 0;
-            String detectedTrinket = "Ninguno";
 
             for (ItemStack item : trinketBag.getContents()) {
                 if (item != null && item.getType() == Material.WARPED_FUNGUS_ON_A_STICK) {
@@ -58,11 +57,9 @@ public class BrazoPutrefactoListener implements Listener {
                         String displayName = meta.getDisplayName();
                         if (displayName.equals("Brazo Putrefacto")) {
                             additionalDamage = 1;
-                            detectedTrinket = "Brazo Putrefacto";
                             break;
                         } else if (displayName.equals("§6§lBrazo Putrefacto Dorado")) {
                             additionalDamage = 2;
-                            detectedTrinket = "Brazo Putrefacto Dorado";
                             break;
                         }
                     }
@@ -71,8 +68,6 @@ public class BrazoPutrefactoListener implements Listener {
 
             if (additionalDamage > 0) {
                 event.setDamage(event.getDamage() + additionalDamage);
-                player.sendMessage(
-                        "Trinket detectado: " + detectedTrinket + ". Daño total: " + event.getDamage() + " ❤");
             }
         }
     }
