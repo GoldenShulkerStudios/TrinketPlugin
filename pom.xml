@@ -3,18 +3,18 @@
     
     <!-- Project information -->
     <groupId>me.ewahv1</groupId>
-    <artifactId>TrinketPlugin</artifactId>
+    <artifactId>TrinketsX</artifactId>
     <packaging>jar</packaging>
 
     <!-- Plugin Information -->
-    <name>TrinketPlugin</name>
-    <description>This plugin is created for the Insomnia</description>
-    <version>0.0.1</version>
-    <url>https://github.com/2lstudios-mc/bukkit-boilerplate</url>
+    <name>TrinketsX</name>
+    <description>This plugin is created for the Insomnia server by GoldenShulkerStudios</description>
+    <version>1.0.0</version>
+    <url>https://github.com/GoldenShulkerStudios/TrinketsX</url>
 
     <properties>
         <author>ewahv1</author>
-        <mainClass>me.ewahv1.plugin.Main</mainClass>
+        <mainClass>me.ewahv1.trinketsx.Main</mainClass>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
@@ -36,12 +36,6 @@
             <artifactId>spigot-api</artifactId>
             <version>1.21-R0.1-SNAPSHOT</version>
             <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.google.code.gson</groupId>
-            <artifactId>gson</artifactId>
-            <version>2.8.8</version>
         </dependency>
 
         <!-- HikariCP Dependency -->
@@ -67,14 +61,11 @@
         <sourceDirectory>src/main/java</sourceDirectory>
         <!-- Clean old builds and install dependencies before compile -->
         <defaultGoal>clean install</defaultGoal>
-        <!-- Package files inside resource directory in to the jar -->
+        <!-- Include resources inside the jar -->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-                <excludes>
-                    <exclude>**/*.java</exclude>
-                </excludes>
+                <filtering>false</filtering>
             </resource>
         </resources>
 

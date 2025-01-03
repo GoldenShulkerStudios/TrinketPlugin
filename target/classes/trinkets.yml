@@ -1,0 +1,36 @@
+Trinkets:
+  Advancements:
+    BayaZidra:
+      name: "&2BayaZidra"
+      lore: 
+        - "&7Parece una pera"
+        - ""
+        - "&7Cuando el jugador tiene menos"
+        - "&7de 3 corazones."
+        - "&7Curará 1/4 de la vida total"
+        - ""
+        - "&7Slot: &e&lBolsa de Trinkets"
+      customModelData: 1
+      consumable: 1
+      tier: 1
+    MissigNo:
+      name: "&7MissingNo"
+      lore:
+        - ""
+        - ""
+        - ""
+        - "&7Slot: &e&lBolsa de Trinkets"
+      customModelData: 2
+      consumable: -1
+      tier: 1
+  Crafted:
+    BandaFocus:
+      name: "&7&Banda Focus"
+      lore:
+        - ""
+        - ""
+        - ""
+        - "&7Slot: &e&lBolsa de Trinkets"
+      customModelData: 3
+      consumable: 1
+      tier: 3

@@ -1,10 +1,10 @@
-name: TrinketPlugin
-description: This plugin is created for the Insomnia
+name: TrinketsX
+description: Este plugin es creado para el servidor Insomnia por GoldenShulkerStudios
 author: ewahv1
 main: me.ewahv1.plugin.Main
-version: 0.0.1
-api-version: 1.20
+version: 1.0.0
+api-version: 1.21
 commands:
   bolsa:
-    description: Abre la bolsa de trinkets.
+    description: Abre la Bolsa de Trinkets
     usage: /bolsa

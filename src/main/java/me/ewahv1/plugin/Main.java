@@ -1,27 +1,34 @@
 package me.ewahv1.plugin;
 
-import me.ewahv1.plugin.Commands.BagOfTrinketsCommand;
-import me.ewahv1.plugin.CreateJsonFiles.InitManage;
-import me.ewahv1.plugin.Listeners.Items.BagOfTrinketsListener;
 import org.bukkit.plugin.java.JavaPlugin;
-import me.ewahv1.plugin.Listeners.Trinkets.TrinketManage;
 
 public class Main extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        getLogger().info("TrinketPlugin has been enabled!");
-        InitManage initManage = new InitManage();
-        initManage.initialize();
+        getLogger().info("==============================");
+        getLogger().info("       TrinketsX Iniciado      ");
+        getLogger().info("  Plugin desarrollado por ewahv1  ");
+        getLogger().info("==============================");
 
-        this.getCommand("bolsa").setExecutor(new BagOfTrinketsCommand(this));
-        getServer().getPluginManager().registerEvents(new BagOfTrinketsListener(this), this);
+        // Copiar archivos YML predeterminados
+        new me.ewahv1.plugin.Utils.CopyYMLs(this).copyDefaultYMLs();
 
-        TrinketManage.registerEvents(this);
+        // Registrar comandos
+        getCommand("bolsa").setExecutor(new me.ewahv1.plugin.Commands.BolsaTrinketsCommand());
+
+        // Registrar listeners
+        getServer().getPluginManager().registerEvents(new me.ewahv1.plugin.Utils.BolsaListener(), this);
+        getServer().getPluginManager().registerEvents(new me.ewahv1.plugin.Utils.GenerarBayaZidra(this), this);
+        getServer().getPluginManager().registerEvents(new me.ewahv1.plugin.Listeners.Advancements.BayaZidra(this),
+                this);
+
     }
 
     @Override
     public void onDisable() {
-        getLogger().info("TrinketPlugin has been disabled!");
+        getLogger().info("==============================");
+        getLogger().info("       TrinketsX Deshabilitado    ");
+        getLogger().info("==============================");
     }
 }
